@@ -1,0 +1,98 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 25
+  },
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/${presetName}",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "all",
+      "displayName": "Everything",
+      "description": "Unit tests and benchmarks",
+      "inherits": [
+        "base"
+      ],
+      "cacheVariables": {
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+      }
+    },
+    {
+      "name": "test",
+      "displayName": "Unit tests",
+      "description": "Unit tests only",
+      "inherits": [
+        "base"
+      ]
+    },
+    {
+      "name": "benchmark",
+      "displayName": "Benchmarks",
+      "description": "Benchmarks only",
+      "inherits": [
+        "base"
+      ]
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "all",
+      "configurePreset": "all"
+    },
+    {
+      "name": "test",
+      "configurePreset": "test",
+      "targets": [
+        "ystl_tests"
+      ]
+    },
+    {
+      "name": "benchmark",
+      "configurePreset": "benchmark",
+      "targets": [
+        "ystl_benchmarks"
+      ]
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "all",
+      "configurePreset": "all",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "test",
+      "configurePreset": "test",
+      "filter": {
+        "include": {
+          "name": "^ystl_tests$"
+        }
+      },
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "benchmark",
+      "configurePreset": "benchmark",
+      "filter": {
+        "include": {
+          "name": "^ystl_benchmarks$"
+        }
+      },
+      "output": {
+        "outputOnFailure": true
+      }
+    }
+  ]
+}

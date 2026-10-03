@@ -1,0 +1,52 @@
+# cmake preset build dirs (cmake --preset all/test/benchmark)
+/all/
+/test/
+/benchmark/
+
+# generic build dirs
+/build*/
+/out/
+/cmake-build-*/
+
+# generic cmake outputs
+**/CMakeCache.txt
+**/CMakeFiles/
+**/CTestTestfile.cmake
+**/cmake_install.cmake
+**/compile_commands.json
+**/CMakeUserPresets.json
+**/install_manifest.txt
+
+# ninja
+**/.ninja_deps
+**/.ninja_log
+**/build.ninja
+**/rules.ninja
+
+# binaries and libraries
+*.exe
+*.dll
+*.so
+*.so.*
+*.dylib
+*.a
+*.lib
+*.o
+*.obj
+*.pdb
+*.ilk
+*.exp
+*.idb
+
+# test run leftovers
+*.tmp
+ystl_test_*.tmp
+ystl_mkpath_test_dir/
+
+# editor/ide
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+.cache/

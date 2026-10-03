@@ -1,0 +1,120 @@
+name: Tests
+
+on:
+  push:
+    branches: [main, master, dev]
+  pull_request:
+    branches: [main, master, dev]
+
+jobs:
+  test-native:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            arch: x86_64
+            name: Linux x86_64
+          - os: ubuntu-latest
+            arch: i386
+            name: Linux x86_32
+          - os: windows-2025
+            arch: x64
+            name: Windows x64
+          - os: windows-2022
+            arch: x86
+            name: Windows x86
+          - os: macos-26-intel
+            arch: x86_64
+            name: macOS x86_64
+          - os: macos-latest
+            arch: arm64
+            name: macOS ARM64
+
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Install 32-bit toolchain (Linux i386)
+        if: matrix.arch == 'i386'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-multilib g++-multilib
+
+      - name: Setup MSVC (Windows)
+        if: runner.os == 'Windows'
+        uses: TheMrMilchmann/setup-msvc-dev@v4
+        with:
+          arch: ${{ matrix.arch }}
+
+      - name: Configure (Linux i386)
+        if: matrix.arch == 'i386'
+        run: cmake --preset all -DCMAKE_CXX_FLAGS="-m32 -msse2" -DCMAKE_EXE_LINKER_FLAGS=-m32
+
+      - name: Configure
+        if: matrix.arch != 'i386'
+        run: cmake --preset all
+
+      - name: Build
+        run: cmake --build --preset all
+
+      - name: Test
+        run: ctest --preset all -R ^ystl_tests$
+
+  test-cross:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: aarch64
+            distro: ubuntu_latest
+            name: Linux aarch64
+          - arch: riscv64
+            distro: ubuntu_latest
+            name: Linux riscv64
+          - arch: ppc64le
+            distro: ubuntu_latest
+            name: Linux ppc64le
+          - arch: armv7
+            distro: ubuntu_latest
+            name: Linux armv7
+          - arch: armv6
+            distro: bookworm
+            name: Linux armv6
+          - arch: s390x
+            distro: ubuntu_latest
+            name: Linux s390x
+          - arch: aarch64
+            distro: alpine_latest
+            name: Linux aarch64 (musl)
+
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Test on ${{ matrix.arch }}
+        uses: uraimo/run-on-arch-action@v3
+        with:
+          arch: ${{ matrix.arch }}
+          distro: ${{ matrix.distro }}
+          githubToken: ${{ github.token }}
+          install: |
+            if command -v apk >/dev/null 2>&1; then
+              apk update
+              apk add cmake ninja g++
+            else
+              apt-get update
+              apt-get install -y cmake ninja-build g++
+            fi
+          run: |
+            cmake --preset all
+            cmake --build --preset all
+            ctest --preset all -R ^ystl_tests$

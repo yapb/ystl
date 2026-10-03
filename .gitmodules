@@ -1,0 +1,3 @@
+[submodule "ext/mbedtls/mbedtls"]
+	path = ext/mbedtls/mbedtls
+	url = https://github.com/yapb/mbedtls.git
