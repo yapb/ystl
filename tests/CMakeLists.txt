@@ -1,8 +1,4 @@
-#
-# ystl tests and benchmarks (mirrors the old tests/meson.build)
-#
 # SPDX-License-Identifier: Unlicense
-#
 
 set(YSTL_TEST_SOURCES
     main.cpp
@@ -66,7 +62,6 @@ set(YSTL_BENCHMARK_SOURCES
     benchmark_confparse.cpp
 )
 
-# shared setup for both binaries: same flags the meson build used
 function(ystl_setup_target _tgt)
     target_link_libraries(${_tgt} PRIVATE ystl)
 
@@ -76,7 +71,6 @@ function(ystl_setup_target _tgt)
 
     target_compile_definitions(${_tgt} PRIVATE YSTL_COMPAT_STL)
 
-    # force-include wrapper header into every tu like old build did
     if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC" OR CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
         target_compile_options(${_tgt} PRIVATE /FIforce_include.h)
     else()
@@ -89,8 +83,6 @@ function(ystl_setup_target _tgt)
         find_package(Threads REQUIRED)
         target_link_libraries(${_tgt} PRIVATE Threads::Threads)
 
-        # 64-bit atomics lower to libatomic calls on targets without native
-        # support (e.g. armv6). probe once, then link it when needed.
         include(CheckCXXSourceCompiles)
         check_cxx_source_compiles ("
             int main () { unsigned long long v = 0; __atomic_fetch_add (&v, 1, __ATOMIC_SEQ_CST); return static_cast<int> (v); }
@@ -100,7 +92,6 @@ function(ystl_setup_target _tgt)
         endif()
     endif()
 
-    # mirror the old mingw link (static runtimes)
     if(WIN32 AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
         target_link_options(${_tgt} PRIVATE -static-libstdc++ -static-libgcc)
     endif()
@@ -118,7 +109,6 @@ set_tests_properties(ystl_tests PROPERTIES TIMEOUT 1200)
 add_test(NAME ystl_benchmarks COMMAND ystl_benchmarks --reporter console)
 set_tests_properties(ystl_benchmarks PROPERTIES TIMEOUT 300)
 
-# run targets: build the binary if needed, then run it straight away
 add_custom_target(run-tests
     COMMAND $<TARGET_FILE:ystl_tests> --reporter console
     DEPENDS ystl_tests

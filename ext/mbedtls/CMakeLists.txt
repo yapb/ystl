@@ -1,17 +1,6 @@
-#
-# ystl vendored mbedtls (4.2, yapb/mbedtls mirror submodule in mbedtls/).
-#
-# Lean TLS-1.2-only client config: mbedtls_config.h (TLS/X509) and
-# crypto_config.h (TF-PSA-Crypto) next to this file.
-# Consumers link ystl_mbedtls (libs + YSTL_WITH_TLS switch for our header).
-# Kept as a wrapper (not add_subdirectory(mbedtls) directly) so a future
-# psvita entropy/shim can be compiled in here without touching the submodule.
-#
 # SPDX-License-Identifier: Unlicense
-#
 cmake_minimum_required(VERSION 3.22)
 
-# scoped here only, no longer leaks into the whole build
 set(CMAKE_WARN_DEPRECATED OFF)
 # cache defaults (no force, -D still overrides): upstream reads these inside
 # functions, where only cache is visible
@@ -56,7 +45,6 @@ if (MSVC)
     set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 endif ()
 
-# override with -DYSTL_MBEDTLS_ENTROPY_DRIVER=ON/OFF if the detection is wrong
 if (NOT DEFINED YSTL_MBEDTLS_ENTROPY_DRIVER)
     if (WINXP OR VITA OR CMAKE_SYSTEM_NAME MATCHES "^(Vita|PSVita|psp2)$")
         set(YSTL_MBEDTLS_ENTROPY_DRIVER ON)
@@ -75,7 +63,6 @@ if (YSTL_MBEDTLS_ENTROPY_DRIVER)
     target_sources(tfpsacrypto PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/platform_shim.c")
 endif ()
 
-# bcrypt is vista+, unavailable on winxp
 set(_ystl_drop "everest|p256")
 if (YSTL_MBEDTLS_ENTROPY_DRIVER)
     set(_ystl_drop "${_ystl_drop}|bcrypt")
