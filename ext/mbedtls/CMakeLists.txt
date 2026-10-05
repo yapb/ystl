@@ -57,6 +57,9 @@ if (YSTL_MBEDTLS_ENTROPY_DRIVER)
     add_compile_definitions(YSTL_MBEDTLS_ENTROPY_DRIVER=1)
 endif ()
 
+# static archives land in shared libs, need pic even when the consumer passes none
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+
 add_subdirectory(mbedtls)
 
 if (YSTL_MBEDTLS_ENTROPY_DRIVER)
