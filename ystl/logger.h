@@ -61,7 +61,11 @@ private:
     strftime (timebuf, sizeof timebuf, "%Y-%m-%d %H:%M:%S", &timeinfo);
 
     LogFile lf (filename_);
-    lf.print (strings.format ("%s (%s): %s\n", timebuf, level, msg));
+
+    // dynamic buffer, the decorated line can exceed any static limit
+    String line {};
+    line.assignf ("%s (%s): %s\n", timebuf, level, msg);
+    lf.print (line);
   }
 
 public:
@@ -72,18 +76,20 @@ public:
   };
 
   template <LogLevel level, typename... Args> void log (const char *fmt, Args &&...args) {
-    auto msg = strings.format (fmt, ystl::forward<Args> (args)...);
+    // dynamic buffer, log lines echo unbounded user content
+    String msg {};
+    msg.assignf (fmt, ystl::forward<Args> (args)...);
     constexpr const char *level_str = level == LogLevel::Fatal ? "FATAL" : level == LogLevel::Error ? "ERROR" : "INFO";
 
-    log_to_file (level_str, msg);
+    log_to_file (level_str, msg.chars ());
 
     if constexpr (level == LogLevel::Fatal) {
-      plat.abort (msg);
+      plat.abort (msg.chars ());
     }
 
     if constexpr (level != LogLevel::Fatal) {
       if (print_fun_) {
-        print_fun_ (msg);
+        print_fun_ (msg.chars ());
       }
     }
   }
