@@ -60,7 +60,8 @@ endif ()
 # static archives land in shared libs, need pic even when the consumer passes none
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-add_subdirectory(mbedtls)
+# linked statically, so keep its headers and libs out of the install tree
+add_subdirectory(mbedtls EXCLUDE_FROM_ALL)
 
 if (YSTL_MBEDTLS_ENTROPY_DRIVER)
     target_sources(tfpsacrypto PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/platform_shim.c")
