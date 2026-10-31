@@ -649,3 +649,103 @@ TEST_CASE ("quoted value keeps same-line block close [confparse]") {
   REQUIRE (node->size () == 1);
   CHECK (node->find ("key")->value () == "v");
 }
+
+// @include expansion
+namespace {
+struct IncludeStub {
+  const char *name {};
+  const char *text {};
+
+  static ystl::String Load (ystl::StringRef path, ystl::StringRef, void *user) {
+    auto *files = static_cast<const IncludeStub *> (user);
+
+    for (int i = 0; files[i].name != nullptr; ++i) {
+      if (path == files[i].name) {
+        return ystl::String (files[i].text);
+      }
+    }
+    return {};
+  }
+};
+} // namespace
+
+TEST_CASE ("@include merges the target document [confparse]") {
+  IncludeStub files[] = {
+    { "common.cfg", "Shared {\n  key = value\n}\n" },
+    { nullptr,      nullptr                        },
+  };
+
+  ConfParser parser;
+  parser.set_include_loader (&IncludeStub::Load, files);
+
+  REQUIRE (parser.parse ("@include \"common.cfg\"\nOwn = 2\n", "root.cfg"));
+  const auto &doc = parser.document ();
+
+  REQUIRE (doc.find ("Shared") != nullptr);
+  CHECK (doc.find ("Shared")->find ("key")->value () == "value");
+  CHECK (doc.find ("Own")->as_int () == 2);
+}
+
+TEST_CASE ("@include resolves nested and bare targets [confparse]") {
+  IncludeStub files[] = {
+    { "common.cfg", "Shared = 1\n"                      },
+    { "nested.cfg", "@include common.cfg\nNested = 2\n" },
+    { nullptr,      nullptr                             },
+  };
+
+  ConfParser parser;
+  parser.set_include_loader (&IncludeStub::Load, files);
+
+  REQUIRE (parser.parse ("@include nested.cfg\n"));
+  CHECK (parser.document ().find ("Shared")->as_int () == 1);
+  CHECK (parser.document ().find ("Nested")->as_int () == 2);
+}
+
+TEST_CASE ("missing @include fails the parse [confparse]") {
+  IncludeStub files[] = {
+    { nullptr, nullptr }
+  };
+
+  ConfParser parser;
+  parser.set_include_loader (&IncludeStub::Load, files);
+
+  CHECK (!parser.parse ("@include \"nope.cfg\"\n"));
+  CHECK (!parser.error ().empty ());
+}
+
+TEST_CASE ("@include matches only the whole directive token [confparse]") {
+  IncludeStub files[] = {
+    { nullptr, nullptr }
+  };
+
+  ConfParser parser;
+  parser.set_include_loader (&IncludeStub::Load, files);
+
+  REQUIRE (parser.parse ("@includex = 1\n"));
+  CHECK (parser.document ().find ("@includex")->as_int () == 1);
+}
+TEST_CASE ("@include accepts a quoted path with spaces [confparse]") {
+  IncludeStub files[] = {
+    { "my file.cfg", "A = 1\n" },
+    { nullptr,       nullptr   },
+  };
+
+  ConfParser parser;
+  parser.set_include_loader (&IncludeStub::Load, files);
+
+  REQUIRE (parser.parse ("@include \"my file.cfg\"\n"));
+  CHECK (parser.document ().find ("A")->as_int () == 1);
+}
+
+TEST_CASE ("@include stops a recursive cycle at the depth limit [confparse]") {
+  IncludeStub files[] = {
+    { "loop.cfg", "@include loop.cfg\n" },
+    { nullptr,    nullptr               },
+  };
+
+  ConfParser parser;
+  parser.set_include_loader (&IncludeStub::Load, files);
+
+  CHECK (!parser.parse ("@include loop.cfg\n"));
+  CHECK (!parser.error ().empty ());
+}

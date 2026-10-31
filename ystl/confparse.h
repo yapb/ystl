@@ -57,6 +57,10 @@ namespace ystl {
 
 class ConfNode;
 
+// resolves an @include target to its text; returns empty to report a missing file.
+// 'from' is the path of the including file, so relative includes resolve against it.
+using ConfIncludeLoader = String (*) (StringRef path, StringRef from, void *user);
+
 // bump-allocator pool backing confnode trees, nodes live inside large chunks
 class ConfNodePool final : public NonCopyable {
 public:
@@ -429,7 +433,8 @@ static_assert (alignof (ConfNode) <= alignof (void *), "ConfNodePool chunk stora
 class ConfParser final : public NonCopyable {
 public:
   enum : size_t {
-    MaxDepth = 32
+    MaxDepth = 32,
+    MaxIncludeDepth = 16
   };
 
 private:
@@ -437,16 +442,35 @@ private:
   String error_ {};
   ConfNode document_ {};
 
+  ConfIncludeLoader include_loader_ = nullptr;
+  void *include_user_ = nullptr;
+
 public:
   ConfParser () = default;
 
 public:
-  // parses the config text; on failure returns false (see error ()/errorline ())
-  bool parse (StringRef text) {
-    scan_ = Tokenizer { text };
+  // installs the loader used to expand @include lines (null disables includes)
+  void set_include_loader (ConfIncludeLoader loader, void *user = nullptr) {
+    include_loader_ = loader;
+    include_user_ = user;
+  }
+
+  // parses the config text; on failure returns false (see error ()/errorline ()).
+  // 'source' is the path of the text, used as the base for relative @include targets
+  bool parse (StringRef text, StringRef source = {}) {
     error_.clear ();
     document_ = ConfNode {};
 
+    if (include_loader_ != nullptr) {
+      String expanded {};
+
+      if (!expand_includes (text, source, 0, expanded)) {
+        return false;
+      }
+      scan_ = Tokenizer { expanded };
+      return parse_block (document_, 0);
+    }
+    scan_ = Tokenizer { text };
     return parse_block (document_, 0);
   }
 
@@ -469,6 +493,90 @@ public:
   }
 
 private:
+  // resolves a lone '@include "path"' / '@include path' line into the file text
+  static bool ParseIncludeTarget (StringRef rest, String &out) {
+    if (rest.empty ()) {
+      return false;
+    }
+    if (rest[0] == '"') {
+      const size_t end = rest.find ('"', 1);
+
+      if (end == StringRef::InvalidIndex) {
+        return false;
+      }
+      out.assign (rest.chars () + 1, end - 1);
+      return !out.empty ();
+    }
+    size_t end = 0;
+
+    while (end < rest.size () && !Tokenizer::is_space (rest[end]) && rest[end] != ';' && rest[end] != '#') {
+      ++end;
+    }
+    if (end == 0) {
+      return false;
+    }
+    out.assign (rest.chars (), end);
+    return true;
+  }
+
+  // inlines @include lines recursively, the loader resolves a target against the file it came from
+  bool expand_includes (StringRef text, StringRef from, size_t depth, String &out) {
+    if (depth > MaxIncludeDepth) {
+      error_.assign ("@include nesting is too deep");
+      return false;
+    }
+    constexpr auto kDirective = "@include";
+    constexpr size_t kDirectiveLen = sizeof ("@include") - 1;
+
+    size_t pos = 0;
+
+    for (;;) {
+      const size_t end = text.find ('\n', pos);
+      const size_t line_end = end == StringRef::InvalidIndex ? text.size () : end;
+      const auto line = text.substr (pos, line_end - pos);
+      const auto trimmed = Tokenizer::trim (line, " \t\r");
+
+      bool is_include = trimmed.starts_with (kDirective);
+
+      // the directive token must be followed by whitespace or a quote, not another word
+      if (is_include && trimmed.size () > kDirectiveLen) {
+        const auto after = trimmed[kDirectiveLen];
+        is_include = after == ' ' || after == '\t' || after == '"';
+      }
+      if (is_include) {
+        const auto rest = trimmed.size () > kDirectiveLen
+                            ? Tokenizer::trim (trimmed.substr (kDirectiveLen, trimmed.size () - kDirectiveLen), " \t")
+                            : StringRef {};
+        String path {};
+
+        if (!ParseIncludeTarget (rest, path)) {
+          error_.assign ("malformed @include directive");
+          return false;
+        }
+
+        String included = include_loader_ (path, from, include_user_);
+
+        if (included.empty ()) {
+          error_.assignf ("@include: cannot read '%s'", path.chars ());
+          return false;
+        }
+        if (!expand_includes (included, path, depth + 1, out)) {
+          return false;
+        }
+      }
+      else {
+        out.append (line.chars (), line.size ());
+      }
+
+      if (end == StringRef::InvalidIndex) {
+        break;
+      }
+      out.append ('\n');
+      pos = end + 1;
+    }
+    return true;
+  }
+
   // creates a node in the document pool
   ConfNode *create_node () {
     return document_.ensure_pool ()->create ();
